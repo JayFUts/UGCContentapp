@@ -7,6 +7,19 @@ type Platform = 'instagram' | 'tiktok';
 type Format = 'post-square' | 'post-portrait' | 'story';
 type Template = 'cta' | 'stat' | 'quote' | 'spotlight';
 
+type Variant = {
+  headline: string;
+  highlightText: string;
+  subtitle: string;
+  statNumber: string;
+  statLabel: string;
+  authorName: string;
+  caption: string;
+  template: Template;
+  mediaUrl: string;
+  isLoadingImage?: boolean;
+};
+
 export default function App() {
   const [platform, setPlatform] = useState<Platform>('instagram');
   const [format, setFormat] = useState<Format>('post-square');
@@ -26,6 +39,9 @@ export default function App() {
 
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingVariants, setIsGeneratingVariants] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState('');
+  const [variants, setVariants] = useState<Variant[]>([]);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
 
@@ -96,6 +112,161 @@ export default function App() {
       }
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const loadVariant = (v: Variant) => {
+    setHeadline(v.headline);
+    setHighlightText(v.highlightText);
+    setSubtitle(v.subtitle);
+    setStatNumber(v.statNumber);
+    setStatLabel(v.statLabel);
+    setAuthorName(v.authorName);
+    setCaption(v.caption);
+    setTemplate(v.template);
+    setMediaUrl(v.mediaUrl);
+    setMediaType('image');
+  };
+
+  const handleGenerate10Variants = async () => {
+    if (!prompt.trim()) return;
+    setIsGeneratingVariants(true);
+    setGenerationProgress('Teksten bedenken...');
+    try {
+      // @ts-ignore
+      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+        // @ts-ignore
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          // @ts-ignore
+          await window.aistudio.openSelectKey();
+        }
+      }
+      
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error("No API key available");
+
+      const ai = new GoogleGenAI({ apiKey: apiKey as string });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Genereer 10 VERSCHILLENDE Instagram ad content varianten voor UGC4you over: "${prompt}".
+        Schrijf in het Nederlands. Zorg voor veel variatie in de teksten, templates en invalshoeken.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                headline: { type: Type.STRING, description: "Korte, pakkende koptekst (zonder de highlight tekst)" },
+                highlightText: { type: Type.STRING, description: "1 of 2 woorden om te benadrukken in het groen" },
+                subtitle: { type: Type.STRING, description: "Ondersteunende tekst of call-to-action (max 2 zinnen)" },
+                statNumber: { type: Type.STRING, description: "Een indrukwekkend getal (bijv. '1.000+', '50%')" },
+                statLabel: { type: Type.STRING, description: "Label voor het getal (bijv. 'Creators', 'Conversie')" },
+                authorName: { type: Type.STRING, description: "Een verzonnen naam van een creator of merk" },
+                caption: { type: Type.STRING, description: "Een pakkende caption/beschrijving voor bij de post, inclusief relevante hashtags en emoji's" },
+                suggestedTemplate: { type: Type.STRING, description: "Kies uit: cta, stat, quote, spotlight" }
+              },
+              required: ["headline", "highlightText", "subtitle", "statNumber", "statLabel", "authorName", "caption", "suggestedTemplate"]
+            }
+          }
+        }
+      });
+      
+      if (response.text) {
+        const data = JSON.parse(response.text);
+        
+        // High quality UGC-style stock images for the variants
+        const stockImages = [
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1488161628813-04466f872be2?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1517365830460-955ce3ccd263?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80'
+        ];
+        // Shuffle images
+        const shuffledImages = [...stockImages].sort(() => 0.5 - Math.random());
+
+        const newVariants: Variant[] = data.map((v: any, index: number) => ({
+          headline: v.headline || headline,
+          highlightText: v.highlightText || highlightText,
+          subtitle: v.subtitle || subtitle,
+          statNumber: v.statNumber || statNumber,
+          statLabel: v.statLabel || statLabel,
+          authorName: v.authorName || authorName,
+          caption: v.caption || caption,
+          template: ['cta', 'stat', 'quote', 'spotlight'].includes(v.suggestedTemplate) ? v.suggestedTemplate : 'cta',
+          mediaUrl: shuffledImages[index % shuffledImages.length],
+          isLoadingImage: true
+        }));
+
+        setVariants([...newVariants]);
+        loadVariant(newVariants[0]);
+
+        // Generate images sequentially
+        for (let i = 0; i < newVariants.length; i++) {
+          setGenerationProgress(`Afbeelding ${i + 1} van 10 genereren...`);
+          try {
+            const imagePrompt = `A professional Instagram UGC (User Generated Content) photo. High quality, aesthetic, authentic lifestyle photography. Context: ${newVariants[i].headline} ${newVariants[i].subtitle}. No text or words in the image.`;
+            
+            const imgResponse = await ai.models.generateContent({
+              model: 'gemini-3.1-flash-image-preview',
+              contents: { parts: [{ text: imagePrompt }] },
+              config: {
+                imageConfig: {
+                  aspectRatio: format === 'story' ? "9:16" : format === 'post-portrait' ? "3:4" : "1:1"
+                }
+              }
+            });
+
+            if (imgResponse.candidates && imgResponse.candidates[0].content.parts) {
+              for (const part of imgResponse.candidates[0].content.parts) {
+                if (part.inlineData) {
+                  const base64EncodeString = part.inlineData.data;
+                  newVariants[i].mediaUrl = `data:image/png;base64,${base64EncodeString}`;
+                  newVariants[i].isLoadingImage = false;
+                  
+                  setVariants([...newVariants]);
+                  
+                  // Update main view if it's the first one
+                  if (i === 0) {
+                    loadVariant(newVariants[0]);
+                  }
+                  break;
+                }
+              }
+            }
+          } catch (imgError: any) {
+            console.error(`Error generating image ${i}:`, imgError);
+            newVariants[i].isLoadingImage = false;
+            setVariants([...newVariants]);
+            
+            if (imgError?.status === 429 || imgError?.message?.includes('429') || imgError?.message?.includes('RESOURCE_EXHAUSTED')) {
+               alert("API limiet bereikt tijdens het genereren van afbeeldingen. De resterende varianten gebruiken tijdelijke stockfoto's.");
+               for (let j = i; j < newVariants.length; j++) {
+                 newVariants[j].isLoadingImage = false;
+               }
+               setVariants([...newVariants]);
+               break;
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error("Error generating variants:", error);
+      if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
+        alert("Het limiet voor tekst genereren is bereikt. Zorg ervoor dat je een eigen (betaalde) Google Cloud API key hebt geselecteerd.");
+      } else {
+        alert("Er ging iets mis bij het genereren van de varianten.");
+      }
+    } finally {
+      setIsGeneratingVariants(false);
+      setGenerationProgress('');
     }
   };
 
@@ -410,14 +581,24 @@ export default function App() {
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#40B883] focus:border-transparent resize-none mb-3 bg-white"
               rows={2}
             />
-            <button
-              onClick={handleGenerateAI}
-              disabled={isGenerating || !prompt.trim()}
-              className="w-full bg-[#111827] hover:bg-gray-800 text-white py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {isGenerating ? 'Genereren...' : 'Genereer met AI'}
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleGenerateAI}
+                disabled={isGenerating || isGeneratingVariants || !prompt.trim()}
+                className="w-full bg-[#111827] hover:bg-gray-800 text-white py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {isGenerating ? 'Genereren...' : 'Genereer 1 Ad'}
+              </button>
+              <button
+                onClick={handleGenerate10Variants}
+                disabled={isGenerating || isGeneratingVariants || !prompt.trim()}
+                className="w-full bg-[#40B883] hover:bg-[#35a070] text-white py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingVariants ? <Loader2 className="w-4 h-4 animate-spin" /> : <LayoutTemplate className="w-4 h-4" />}
+                {isGeneratingVariants ? (generationProgress || 'Varianten genereren...') : 'Genereer 10 Varianten'}
+              </button>
+            </div>
           </section>
 
           {/* Platform Selection */}
@@ -676,6 +857,36 @@ export default function App() {
           Tip: Download de afbeelding voor hoge kwaliteit (1080px breed). <br/>
           {mediaType === 'video' && <span className="text-indigo-600 mt-2 block">Let op: De downloadknop hierboven maakt een statische screenshot van de video. Gebruik de link in het menu om de bewegende video te downloaden.</span>}
         </p>
+
+        {/* Variants Gallery */}
+        {variants.length > 0 && (
+          <div className="mt-12 w-full max-w-4xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <LayoutTemplate className="w-5 h-5 text-[#40B883]" />
+              Gegenereerde Varianten ({variants.length})
+            </h3>
+            <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
+              {variants.map((v, i) => (
+                <div
+                  key={i}
+                  onClick={() => loadVariant(v)}
+                  className="min-w-[140px] cursor-pointer snap-start flex flex-col gap-2 group"
+                >
+                  <div className={`w-[140px] h-[180px] relative rounded-xl overflow-hidden border-2 transition-all ${headline === v.headline && subtitle === v.subtitle ? 'border-[#40B883] shadow-md' : 'border-transparent hover:border-gray-300'}`}>
+                    <img src={v.mediaUrl} className={`w-full h-full object-cover transition-opacity ${v.isLoadingImage ? 'opacity-40' : 'opacity-100'}`} alt={`Variant ${i+1}`} />
+                    {v.isLoadingImage && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 animate-spin text-[#40B883]" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs font-semibold text-gray-900 truncate px-1">{v.headline}</div>
+                  <div className="text-[10px] text-gray-500 uppercase font-bold px-1">{v.template}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
