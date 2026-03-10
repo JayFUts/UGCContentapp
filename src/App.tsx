@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { toPng } from 'html-to-image';
-import { Download, LayoutTemplate, Type as TypeIcon, Smartphone, Square, RefreshCw, Upload, Sparkles, Loader2, Instagram, Video, RectangleVertical, Share2 } from 'lucide-react';
+import { Download, LayoutTemplate, Type as TypeIcon, Smartphone, Square, RefreshCw, Upload, Sparkles, Loader2, Instagram, Video, RectangleVertical, Share2, Film } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 
 type Platform = 'instagram' | 'tiktok';
@@ -20,11 +20,14 @@ export default function App() {
   const [statNumber, setStatNumber] = useState('1,068+');
   const [statLabel, setStatLabel] = useState('Creators');
   const [authorName, setAuthorName] = useState('Sarah de Vries');
-  const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80');
+  const [caption, setCaption] = useState('🚀 Klaar om je merk te laten groeien met authentieke content? Ontdek hoe UGC creators je kunnen helpen! Link in bio. #UGC #Marketing #Groei');
+  const [mediaUrl, setMediaUrl] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80');
+  const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
 
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
 
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -32,7 +35,20 @@ export default function App() {
     if (!prompt.trim()) return;
     setIsGenerating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      // @ts-ignore
+      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+        // @ts-ignore
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          // @ts-ignore
+          await window.aistudio.openSelectKey();
+        }
+      }
+      
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error("No API key available");
+
+      const ai = new GoogleGenAI({ apiKey: apiKey as string });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `Genereer Instagram ad content voor UGC4you (een platform dat merken en UGC creators verbindt). 
@@ -50,9 +66,10 @@ export default function App() {
               statNumber: { type: Type.STRING, description: "Een indrukwekkend getal (bijv. '1.000+', '50%')" },
               statLabel: { type: Type.STRING, description: "Label voor het getal (bijv. 'Creators', 'Conversie')" },
               authorName: { type: Type.STRING, description: "Een verzonnen naam van een creator of merk" },
+              caption: { type: Type.STRING, description: "Een pakkende caption/beschrijving voor bij de post, inclusief relevante hashtags en emoji's" },
               suggestedTemplate: { type: Type.STRING, description: "Kies uit: cta, stat, quote, spotlight" }
             },
-            required: ["headline", "highlightText", "subtitle", "statNumber", "statLabel", "authorName", "suggestedTemplate"]
+            required: ["headline", "highlightText", "subtitle", "statNumber", "statLabel", "authorName", "caption", "suggestedTemplate"]
           }
         }
       });
@@ -65,13 +82,18 @@ export default function App() {
         setStatNumber(data.statNumber || statNumber);
         setStatLabel(data.statLabel || statLabel);
         setAuthorName(data.authorName || authorName);
+        setCaption(data.caption || caption);
         if (['cta', 'stat', 'quote', 'spotlight'].includes(data.suggestedTemplate)) {
           setTemplate(data.suggestedTemplate as Template);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating content:", error);
-      alert("Er ging iets mis bij het genereren van de content.");
+      if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
+        alert("Het limiet voor tekst genereren is bereikt. Zorg ervoor dat je een eigen (betaalde) Google Cloud API key hebt geselecteerd.");
+      } else {
+        alert("Er ging iets mis bij het genereren van de content.");
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -80,11 +102,24 @@ export default function App() {
   const handleGenerateImage = async () => {
     setIsGeneratingImage(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      // @ts-ignore
+      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+        // @ts-ignore
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          // @ts-ignore
+          await window.aistudio.openSelectKey();
+        }
+      }
+      
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error("No API key available");
+
+      const ai = new GoogleGenAI({ apiKey: apiKey as string });
       const imagePrompt = `A professional Instagram UGC (User Generated Content) photo. High quality, aesthetic, authentic lifestyle photography. Context: ${prompt || headline || 'A content creator'}. No text or words in the image.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-3.1-flash-image-preview',
         contents: {
           parts: [{ text: imagePrompt }]
         },
@@ -100,16 +135,76 @@ export default function App() {
           if (part.inlineData) {
             const base64EncodeString = part.inlineData.data;
             const newImageUrl = `data:image/png;base64,${base64EncodeString}`;
-            setImageUrl(newImageUrl);
+            setMediaUrl(newImageUrl);
+            setMediaType('image');
             break;
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating image:", error);
-      alert("Er ging iets mis bij het genereren van de afbeelding.");
+      if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
+        alert("Het limiet voor afbeeldingen genereren is bereikt. Zorg ervoor dat je een eigen (betaalde) Google Cloud API key hebt geselecteerd.");
+      } else {
+        alert("Er ging iets mis bij het genereren van de afbeelding.");
+      }
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+
+  const handleGenerateVideo = async () => {
+    setIsGeneratingVideo(true);
+    try {
+      // @ts-ignore
+      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+        // @ts-ignore
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          // @ts-ignore
+          await window.aistudio.openSelectKey();
+        }
+      }
+      
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error("No API key available");
+      
+      const ai = new GoogleGenAI({ apiKey: apiKey as string });
+      const videoPrompt = `A professional Instagram UGC (User Generated Content) video. High quality, aesthetic, authentic lifestyle video. Context: ${prompt || headline || 'A content creator'}. No text or words in the video.`;
+      
+      let operation = await ai.models.generateVideos({
+        model: 'veo-3.1-fast-generate-preview',
+        prompt: videoPrompt,
+        config: {
+          numberOfVideos: 1,
+          resolution: '720p',
+          aspectRatio: format === 'post-square' ? '16:9' : '9:16'
+        }
+      });
+
+      while (!operation.done) {
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        operation = await ai.operations.getVideosOperation({operation: operation});
+      }
+
+      const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+      if (downloadLink) {
+        const response = await fetch(downloadLink, {
+          method: 'GET',
+          headers: {
+            'x-goog-api-key': apiKey as string,
+          },
+        });
+        const blob = await response.blob();
+        const videoUrl = URL.createObjectURL(blob);
+        setMediaUrl(videoUrl);
+        setMediaType('video');
+      }
+    } catch (error) {
+      console.error("Error generating video:", error);
+      alert("Er ging iets mis bij het genereren van de video. Let op: voor video generatie is een betaalde API key nodig via Google Cloud.");
+    } finally {
+      setIsGeneratingVideo(false);
     }
   };
 
@@ -136,13 +231,15 @@ export default function App() {
     }
   }, [previewRef, template, format]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const isVideo = file.type.startsWith('video/');
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          setImageUrl(event.target.result as string);
+          setMediaUrl(event.target.result as string);
+          setMediaType(isVideo ? 'video' : 'image');
         }
       };
       reader.readAsDataURL(file);
@@ -154,119 +251,132 @@ export default function App() {
     const isPortrait = format === 'post-portrait';
     const isStory = format === 'story';
     
+    const renderMedia = (className: string) => {
+      if (mediaType === 'video') {
+        return <video src={mediaUrl} autoPlay loop muted playsInline className={className} crossOrigin="anonymous" />;
+      }
+      return <img src={mediaUrl} alt="Creator" className={className} crossOrigin="anonymous" />;
+    };
+    
     const width = 400;
     const height = isSquare ? 400 : isPortrait ? 500 : 711; // 1:1, 4:5, 9:16
 
     return (
       <div 
         ref={previewRef}
-        className="bg-white relative overflow-hidden flex flex-col shadow-sm"
+        className="bg-gray-900 relative overflow-hidden flex flex-col shadow-sm"
         style={{ width, height, fontFamily: "'Inter', sans-serif" }}
       >
+        {/* Background Media for ALL templates */}
+        <div className="absolute inset-0 w-full h-full">
+          {renderMedia("w-full h-full object-cover object-center")}
+        </div>
+
         {template === 'cta' && (
-          <div className="flex-1 flex flex-col items-center text-center px-8 pt-10 pb-0">
-            <div className="text-2xl font-extrabold tracking-tight mb-6">
-              <span className="text-[#111827]">UGC</span><span className="text-[#40B883]">4you</span>
+          <>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/40"></div>
+            <div className="relative z-10 flex-1 flex flex-col items-center text-center p-8">
+              <div className="text-xl font-extrabold tracking-tight mb-auto bg-white/95 px-5 py-2 rounded-full shadow-lg">
+                <span className="text-[#111827]">UGC</span><span className="text-[#40B883]">4you</span>
+              </div>
+              
+              <div className="mt-auto w-full flex flex-col items-center">
+                <h1 className={`${isSquare ? 'text-2xl' : 'text-3xl'} font-extrabold leading-tight tracking-tight text-white mb-3 drop-shadow-lg`}>
+                  {headline} <br />
+                  <span className="text-[#40B883]">{highlightText}</span>
+                </h1>
+                
+                <p className={`${isSquare ? 'text-sm' : 'text-base'} text-gray-200 leading-relaxed mb-6 max-w-[280px] drop-shadow-md`}>
+                  {subtitle}
+                </p>
+                
+                <div className="bg-[#40B883] text-white px-8 py-3.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-xl">
+                  Registreer gratis
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                </div>
+              </div>
             </div>
-            
-            <h1 className={`${isSquare ? 'text-3xl' : 'text-4xl mt-10'} font-extrabold leading-tight tracking-tight text-[#111827] mb-4`}>
-              {headline} <br />
-              <span className="text-[#40B883] block">{highlightText}</span>
-            </h1>
-            
-            <p className={`${isSquare ? 'text-sm' : 'text-base'} text-[#6B7280] leading-relaxed mb-6 max-w-[280px]`}>
-              {subtitle}
-            </p>
-            
-            <div className="bg-[#40B883] text-white px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 mb-8">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-              Registreer gratis
-            </div>
-            
-            <div className={`mt-auto w-full max-w-[280px] ${isSquare ? 'h-[120px]' : isPortrait ? 'h-[180px]' : 'h-[250px]'} bg-gray-200 rounded-t-3xl overflow-hidden relative`}>
-              <img src={imageUrl} alt="Creator" className="w-full h-full object-cover" crossOrigin="anonymous" />
-            </div>
-          </div>
+          </>
         )}
 
         {template === 'stat' && (
-          <div className="flex-1 flex flex-col p-8">
-            <div className="text-2xl font-extrabold tracking-tight mb-8">
-              <span className="text-[#111827]">UGC</span><span className="text-[#40B883]">4you</span>
-            </div>
-            
-            <div className="flex-1 flex flex-col justify-center">
-              <div className="mb-8">
-                <span className={`${isSquare ? 'text-6xl' : 'text-8xl'} font-bold text-[#40B883] tracking-tight block mb-2`}>{statNumber}</span>
-                <span className="text-lg font-semibold text-[#6B7280] uppercase tracking-wider">{statLabel}</span>
+          <>
+            <div className="absolute inset-0 bg-black/60"></div>
+            <div className="relative z-10 flex-1 flex flex-col p-8">
+              <div className="text-xl font-extrabold tracking-tight mb-8 text-white opacity-90 drop-shadow-md">
+                <span>UGC</span><span className="text-[#40B883]">4you</span>
               </div>
               
-              <h2 className={`${isSquare ? 'text-2xl' : 'text-4xl'} font-extrabold leading-tight text-[#111827] mb-4`}>
-                {headline} <span className="text-[#40B883]">{highlightText}</span>
-              </h2>
-              
-              <p className={`${isSquare ? 'text-sm' : 'text-lg'} text-[#6B7280] leading-relaxed`}>
-                {subtitle}
-              </p>
-            </div>
-            
-            {!isSquare && (
-              <div className={`mt-auto w-full ${isPortrait ? 'h-[150px]' : 'h-[200px]'} rounded-2xl overflow-hidden`}>
-                <img src={imageUrl} alt="Creator" className="w-full h-full object-cover" crossOrigin="anonymous" />
+              <div className="flex-1 flex flex-col justify-center items-center text-center">
+                <div className="mb-6 bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20 w-full shadow-2xl">
+                  <span className={`${isSquare ? 'text-5xl' : 'text-7xl'} font-black text-[#40B883] tracking-tight block mb-1 drop-shadow-lg`}>{statNumber}</span>
+                  <span className="text-sm font-bold text-white uppercase tracking-widest opacity-90">{statLabel}</span>
+                </div>
+                
+                <h2 className={`${isSquare ? 'text-xl' : 'text-3xl'} font-bold leading-tight text-white mb-3 drop-shadow-lg`}>
+                  {headline} <span className="text-[#40B883]">{highlightText}</span>
+                </h2>
+                
+                <p className={`${isSquare ? 'text-xs' : 'text-sm'} text-gray-300 leading-relaxed max-w-[280px] drop-shadow-md`}>
+                  {subtitle}
+                </p>
               </div>
-            )}
-          </div>
+            </div>
+          </>
         )}
 
         {template === 'quote' && (
-          <div className="flex-1 flex flex-col p-8 bg-[#111827] text-white">
-            <div className="text-2xl font-extrabold tracking-tight mb-8">
-              <span className="text-white">UGC</span><span className="text-[#40B883]">4you</span>
-            </div>
-            
-            <div className="flex-1 flex flex-col justify-center relative">
-              <svg className={`${isSquare ? 'w-16 h-16' : 'w-24 h-24'} text-[#40B883] opacity-20 absolute -top-4 -left-2`} fill="currentColor" viewBox="0 0 24 24">
-                <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
-              </svg>
+          <>
+            <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/40 to-transparent"></div>
+            <div className="relative z-10 flex-1 flex flex-col p-8">
+              <div className="text-xl font-extrabold tracking-tight mb-8 text-white opacity-90 drop-shadow-md">
+                <span>UGC</span><span className="text-[#40B883]">4you</span>
+              </div>
               
-              <h2 className={`${isSquare ? 'text-2xl' : 'text-4xl'} font-bold leading-snug mb-8 relative z-10`}>
-                "{headline} <span className="text-[#40B883]">{highlightText}</span>"
-              </h2>
-              
-              <div className="flex items-center gap-4 mt-auto">
-                <img src={imageUrl} alt={authorName} className={`${isSquare ? 'w-12 h-12' : 'w-16 h-16'} rounded-full object-cover border-2 border-[#40B883]`} crossOrigin="anonymous" />
-                <div>
-                  <div className={`${isSquare ? 'text-sm' : 'text-lg'} font-bold`}>{authorName}</div>
-                  <div className={`${isSquare ? 'text-xs' : 'text-sm'} text-gray-400`}>UGC Creator</div>
+              <div className="flex-1 flex flex-col justify-center relative">
+                <svg className={`${isSquare ? 'w-12 h-12' : 'w-20 h-20'} text-[#40B883] opacity-50 absolute -top-6 -left-4 drop-shadow-lg`} fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
+                </svg>
+                
+                <h2 className={`${isSquare ? 'text-xl' : 'text-3xl'} font-bold leading-snug mb-8 relative z-10 text-white drop-shadow-xl`}>
+                  "{headline} <span className="text-[#40B883]">{highlightText}</span>"
+                </h2>
+                
+                <div className="flex items-center gap-3 mt-auto bg-black/40 backdrop-blur-md p-3 rounded-2xl border border-white/10 w-fit shadow-xl">
+                  <div className="w-10 h-10 rounded-full bg-[#40B883] flex items-center justify-center text-white font-bold text-lg shadow-inner">
+                    {authorName.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white">{authorName}</div>
+                    <div className="text-xs text-gray-300">UGC Creator</div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {template === 'spotlight' && (
-          <div className="flex-1 relative flex flex-col">
-            <img src={imageUrl} alt="Creator" className="absolute inset-0 w-full h-full object-cover" crossOrigin="anonymous" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
-            
+          <>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/40"></div>
             <div className="relative z-10 p-8 flex flex-col h-full">
-              <div className="text-2xl font-extrabold tracking-tight drop-shadow-md">
-                <span className="text-white">UGC</span><span className="text-[#40B883]">4you</span>
+              <div className="text-xl font-extrabold tracking-tight drop-shadow-md text-white">
+                <span>UGC</span><span className="text-[#40B883]">4you</span>
               </div>
               
               <div className="mt-auto">
-                <div className={`inline-block bg-[#40B883] text-white ${isSquare ? 'text-xs px-3 py-1' : 'text-sm px-4 py-2'} font-bold rounded-full mb-4 uppercase tracking-wider`}>
+                <div className={`inline-block bg-[#40B883] text-white text-xs px-3 py-1.5 font-bold rounded-full mb-3 uppercase tracking-wider shadow-lg`}>
                   Creator Spotlight
                 </div>
-                <h2 className={`${isSquare ? 'text-4xl' : 'text-6xl'} font-extrabold text-white mb-3 leading-tight drop-shadow-lg`}>
+                <h2 className={`${isSquare ? 'text-3xl' : 'text-5xl'} font-black text-white mb-2 leading-tight drop-shadow-2xl`}>
                   {authorName}
                 </h2>
-                <p className={`${isSquare ? 'text-sm' : 'text-lg'} text-gray-200 font-medium drop-shadow-md max-w-[300px]`}>
+                <p className={`${isSquare ? 'text-sm' : 'text-base'} text-gray-200 font-medium drop-shadow-lg max-w-[280px]`}>
                   {headline} <span className="text-[#40B883]">{highlightText}</span>
                 </p>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     );
@@ -479,28 +589,64 @@ export default function App() {
             )}
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Afbeelding</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Social Media Caption (Bijschrift)</label>
+              <textarea
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#40B883] focus:border-transparent resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Media (Foto / Video)</label>
               <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
-                    <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    {mediaType === 'video' ? (
+                      <video src={mediaUrl} className="w-full h-full object-cover" muted />
+                    ) : (
+                      <img src={mediaUrl} alt="Preview" className="w-full h-full object-cover" />
+                    )}
                   </div>
                   <div className="flex-1 flex gap-2">
-                    <label className="flex-1 cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium text-center transition-colors flex items-center justify-center gap-2">
-                      <Upload className="w-4 h-4" />
+                    <label className="flex-1 cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-2 py-2 rounded-lg text-xs font-medium text-center transition-colors flex items-center justify-center gap-1">
+                      <Upload className="w-3 h-3" />
                       Upload
-                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                      <input type="file" accept="image/*,video/*" className="hidden" onChange={handleMediaUpload} />
                     </label>
                     <button 
                       onClick={handleGenerateImage}
-                      disabled={isGeneratingImage}
-                      className="flex-1 bg-[#40B883]/10 hover:bg-[#40B883]/20 text-[#40B883] border border-[#40B883]/30 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      disabled={isGeneratingImage || isGeneratingVideo}
+                      className="flex-1 bg-[#40B883]/10 hover:bg-[#40B883]/20 text-[#40B883] border border-[#40B883]/30 px-2 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
                     >
-                      {isGeneratingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                       AI Foto
+                    </button>
+                    <button 
+                      onClick={handleGenerateVideo}
+                      disabled={isGeneratingImage || isGeneratingVideo}
+                      className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 px-2 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      {isGeneratingVideo ? <Loader2 className="w-3 h-3 animate-spin" /> : <Film className="w-3 h-3" />}
+                      AI Video
                     </button>
                   </div>
                 </div>
+                {mediaType === 'video' && (
+                  <button
+                    onClick={() => {
+                      const link = document.createElement('a');
+                      link.download = `ugc4you-video.mp4`;
+                      link.href = mediaUrl;
+                      link.click();
+                    }}
+                    className="text-xs text-indigo-600 font-medium flex items-center gap-1 hover:underline mt-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    Download originele video (zonder tekst)
+                  </button>
+                )}
               </div>
             </div>
           </section>
@@ -526,8 +672,9 @@ export default function App() {
           {renderPreview()}
         </div>
         
-        <p className="mt-6 text-sm text-gray-500">
-          Tip: Download de afbeelding voor hoge kwaliteit (1080px breed).
+        <p className="mt-6 text-sm text-gray-500 text-center max-w-md">
+          Tip: Download de afbeelding voor hoge kwaliteit (1080px breed). <br/>
+          {mediaType === 'video' && <span className="text-indigo-600 mt-2 block">Let op: De downloadknop hierboven maakt een statische screenshot van de video. Gebruik de link in het menu om de bewegende video te downloaden.</span>}
         </p>
       </div>
     </div>
