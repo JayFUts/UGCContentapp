@@ -45,8 +45,11 @@ export default function App() {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const previewRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const handleGenerateAI = async () => {
     if (!prompt.trim()) return;
@@ -381,6 +384,42 @@ export default function App() {
       alert("Er ging iets mis bij het genereren van de video. Let op: voor video generatie is een betaalde API key nodig via Google Cloud.");
     } finally {
       setIsGeneratingVideo(false);
+    }
+  };
+
+  const handleGenerateAudio = async () => {
+    if (!headline && !subtitle) return;
+    setIsGeneratingAudio(true);
+    try {
+      const textToSpeak = `${headline}. ${subtitle}`;
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: textToSpeak,
+          voiceId: "21m00Tcm4TlvDq8ikWAM" // Rachel
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate audio');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
+      
+      // Auto play if it's a video
+      if (mediaType === 'video' && audioRef.current) {
+        audioRef.current.play();
+      }
+    } catch (error) {
+      console.error("Error generating audio:", error);
+      alert("Er ging iets mis bij het genereren van de voice-over. Controleer of de ELEVENLABS_API_KEY is geconfigureerd.");
+    } finally {
+      setIsGeneratingAudio(false);
     }
   };
 
@@ -817,8 +856,25 @@ export default function App() {
                       {isGeneratingVideo ? <Loader2 className="w-3 h-3 animate-spin" /> : <Film className="w-3 h-3" />}
                       AI Video
                     </button>
+                    <button 
+                      onClick={handleGenerateAudio}
+                      disabled={isGeneratingAudio}
+                      className="flex-1 bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 px-2 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      {isGeneratingAudio ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      AI Voice
+                    </button>
                   </div>
                 </div>
+                {audioUrl && (
+                  <div className="mt-2 p-2 bg-purple-50 rounded-lg border border-purple-100 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" />
+                      <span className="text-[10px] font-medium text-purple-700">Voice-over</span>
+                    </div>
+                    <audio ref={audioRef} src={audioUrl} controls className="h-6 w-full max-w-[120px]" />
+                  </div>
+                )}
                 {mediaType === 'video' && (
                   <button
                     onClick={() => {
