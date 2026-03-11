@@ -17,6 +17,7 @@ type Variant = {
   caption: string;
   template: Template;
   mediaUrl: string;
+  imagePrompt: string;
   isLoadingImage?: boolean;
 };
 
@@ -150,7 +151,9 @@ export default function App() {
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `Genereer 10 VERSCHILLENDE Instagram ad content varianten voor UGC4you over: "${prompt}".
-        Schrijf in het Nederlands. Zorg voor veel variatie in de teksten, templates en invalshoeken.`,
+        Schrijf in het Nederlands. Zorg voor veel variatie in de teksten, templates en invalshoeken.
+        Bedenk voor elke variant ook een specifieke, visuele beschrijving voor een AI image generator (in het Engels).
+        Varieer in settings (binnen, buiten, kantoor, café, etc.), belichting en compositie.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -165,9 +168,10 @@ export default function App() {
                 statLabel: { type: Type.STRING, description: "Label voor het getal (bijv. 'Creators', 'Conversie')" },
                 authorName: { type: Type.STRING, description: "Een verzonnen naam van een creator of merk" },
                 caption: { type: Type.STRING, description: "Een pakkende caption/beschrijving voor bij de post, inclusief relevante hashtags en emoji's" },
-                suggestedTemplate: { type: Type.STRING, description: "Kies uit: cta, stat, quote, spotlight" }
+                suggestedTemplate: { type: Type.STRING, description: "Kies uit: cta, stat, quote, spotlight" },
+                imagePrompt: { type: Type.STRING, description: "A detailed, visual English prompt for an AI image generator. Describe the setting, person, and mood. No text in image." }
               },
-              required: ["headline", "highlightText", "subtitle", "statNumber", "statLabel", "authorName", "caption", "suggestedTemplate"]
+              required: ["headline", "highlightText", "subtitle", "statNumber", "statLabel", "authorName", "caption", "suggestedTemplate", "imagePrompt"]
             }
           }
         }
@@ -202,6 +206,7 @@ export default function App() {
           caption: v.caption || caption,
           template: ['cta', 'stat', 'quote', 'spotlight'].includes(v.suggestedTemplate) ? v.suggestedTemplate : 'cta',
           mediaUrl: shuffledImages[index % shuffledImages.length],
+          imagePrompt: v.imagePrompt || `A professional Instagram UGC photo. Context: ${v.headline}`,
           isLoadingImage: true
         }));
 
@@ -212,7 +217,7 @@ export default function App() {
         for (let i = 0; i < newVariants.length; i++) {
           setGenerationProgress(`Afbeelding ${i + 1} van 10 genereren...`);
           try {
-            const imagePrompt = `A professional Instagram UGC (User Generated Content) photo. High quality, aesthetic, authentic lifestyle photography. Context: ${newVariants[i].headline} ${newVariants[i].subtitle}. No text or words in the image.`;
+            const imagePrompt = `A professional Instagram UGC (User Generated Content) photo. High quality, aesthetic, authentic lifestyle photography. ${newVariants[i].imagePrompt}. No text or words in the image.`;
             
             const imgResponse = await ai.models.generateContent({
               model: 'gemini-3.1-flash-image-preview',
