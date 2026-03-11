@@ -346,7 +346,7 @@ export default function App() {
       if (!apiKey) throw new Error("No API key available");
       
       const ai = new GoogleGenAI({ apiKey: apiKey as string });
-      const videoPrompt = `A professional Instagram UGC (User Generated Content) video. High quality, aesthetic, authentic lifestyle video. Context: ${prompt || headline || 'A content creator'}. No text or words in the video.`;
+      const videoPrompt = `A professional Instagram UGC (User Generated Content) B-roll video. High quality, aesthetic, authentic cinematic B-roll footage. Context: ${prompt || headline || 'A content creator'}. No text or words in the video. Natural movement, slow motion, or dynamic camera work.`;
       
       let operation = await ai.models.generateVideos({
         model: 'veo-3.1-fast-generate-preview',
