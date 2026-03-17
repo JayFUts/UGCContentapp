@@ -1,11 +1,11 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { toPng } from 'html-to-image';
-import { Download, LayoutTemplate, Type as TypeIcon, Smartphone, Square, RefreshCw, Upload, Sparkles, Loader2, Instagram, Video, RectangleVertical, Share2, Film } from 'lucide-react';
+import { Download, LayoutTemplate, Type as TypeIcon, Smartphone, Square, RefreshCw, Upload, Sparkles, Loader2, Instagram, Video, RectangleVertical, Share2, Film, Linkedin } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 
-type Platform = 'instagram' | 'tiktok';
-type Format = 'post-square' | 'post-portrait' | 'story';
-type Template = 'cta' | 'stat' | 'quote' | 'spotlight';
+type Platform = 'instagram' | 'tiktok' | 'linkedin';
+type Format = 'post-square' | 'post-portrait' | 'story' | 'linkedin-cover';
+type Template = 'cta' | 'stat' | 'quote' | 'spotlight' | 'banner-pro';
 
 type Variant = {
   headline: string;
@@ -37,6 +37,11 @@ export default function App() {
   const [caption, setCaption] = useState('🚀 Klaar om je merk te laten groeien met authentieke content? Ontdek hoe UGC creators je kunnen helpen! Link in bio. #UGC #Marketing #Groei');
   const [mediaUrl, setMediaUrl] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80');
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
+  const [backgroundMode, setBackgroundMode] = useState<'media' | 'solid'>('media');
+  const [backgroundColor, setBackgroundColor] = useState('#ffffff');
+  const [primaryTextColor, setPrimaryTextColor] = useState('#ffffff');
+  const [highlightColor, setHighlightColor] = useState('#40B883');
+  const [subtitleColor, setSubtitleColor] = useState('#e5e7eb'); // gray-200
 
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -74,7 +79,7 @@ export default function App() {
         contents: `Genereer Instagram ad content voor UGC4you (een platform dat merken en UGC creators verbindt). 
         De gebruiker wil een ad over: "${prompt}".
         Schrijf in het Nederlands. Kort en krachtig.
-        Kies ook een passende template ('cta', 'stat', 'quote', of 'spotlight').`,
+        Kies ook een passende template ('cta', 'stat', 'quote', 'spotlight' of 'banner-pro').`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -87,7 +92,7 @@ export default function App() {
               statLabel: { type: Type.STRING, description: "Label voor het getal (bijv. 'Creators', 'Conversie')" },
               authorName: { type: Type.STRING, description: "Een verzonnen naam van een creator of merk" },
               caption: { type: Type.STRING, description: "Een pakkende caption/beschrijving voor bij de post, inclusief relevante hashtags en emoji's" },
-              suggestedTemplate: { type: Type.STRING, description: "Kies uit: cta, stat, quote, spotlight" }
+              suggestedTemplate: { type: Type.STRING, description: "Kies uit: cta, stat, quote, spotlight, banner-pro" }
             },
             required: ["headline", "highlightText", "subtitle", "statNumber", "statLabel", "authorName", "caption", "suggestedTemplate"]
           }
@@ -411,8 +416,8 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
       
-      // Auto play if it's a video
-      if (mediaType === 'video' && audioRef.current) {
+      // Auto play
+      if (audioRef.current) {
         audioRef.current.play();
       }
     } catch (error) {
@@ -429,9 +434,10 @@ export default function App() {
     try {
       setIsExporting(true);
       
+      const targetWidth = format === 'linkedin-cover' ? 1584 : 1080;
       const dataUrl = await toPng(previewRef.current, { 
         cacheBust: true,
-        pixelRatio: 1080 / 400, // Exact 1080px width export
+        pixelRatio: targetWidth / 400, // Exact target width export
         skipFonts: false,
       });
       
@@ -465,6 +471,7 @@ export default function App() {
     const isSquare = format === 'post-square';
     const isPortrait = format === 'post-portrait';
     const isStory = format === 'story';
+    const isCover = format === 'linkedin-cover';
     
     const renderMedia = (className: string) => {
       if (mediaType === 'video') {
@@ -474,41 +481,45 @@ export default function App() {
     };
     
     const width = 400;
-    const height = isSquare ? 400 : isPortrait ? 500 : 711; // 1:1, 4:5, 9:16
+    const height = isCover ? 100 : isSquare ? 400 : isPortrait ? 500 : 711; // 4:1, 1:1, 4:5, 9:16
 
     return (
       <div 
         ref={previewRef}
-        className="bg-gray-900 relative overflow-hidden flex flex-col shadow-sm"
-        style={{ width, height, fontFamily: "'Inter', sans-serif" }}
+        className="relative overflow-hidden flex flex-col shadow-sm"
+        style={{ width, height, fontFamily: "'Inter', sans-serif", backgroundColor: backgroundMode === 'solid' ? backgroundColor : '#111827' }}
       >
         {/* Background Media for ALL templates */}
-        <div className="absolute inset-0 w-full h-full">
-          {renderMedia("w-full h-full object-cover object-center")}
-        </div>
+        {backgroundMode === 'media' && (
+          <div className="absolute inset-0 w-full h-full">
+            {renderMedia("w-full h-full object-cover object-center")}
+          </div>
+        )}
 
         {template === 'cta' && (
           <>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/40"></div>
-            <div className="relative z-10 flex-1 flex flex-col items-center text-center p-8">
-              <div className="text-xl font-extrabold tracking-tight mb-auto bg-white/95 px-5 py-2 rounded-full shadow-lg">
+            {backgroundMode === 'media' && <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/40"></div>}
+            <div className={`relative z-10 flex-1 flex flex-col items-center text-center ${isCover ? 'p-3' : 'p-8'}`}>
+              <div className={`${isCover ? 'text-sm px-3 py-1 mb-1' : 'text-xl px-5 py-2 mb-auto'} font-extrabold tracking-tight bg-white/95 rounded-full shadow-lg`}>
                 <span className="text-[#111827]">UGC</span><span className="text-[#40B883]">4you</span>
               </div>
               
               <div className="mt-auto w-full flex flex-col items-center">
-                <h1 className={`${isSquare ? 'text-2xl' : 'text-3xl'} font-extrabold leading-tight tracking-tight text-white mb-3 drop-shadow-lg`}>
-                  {headline} <br />
-                  <span className="text-[#40B883]">{highlightText}</span>
+                <h1 className={`${isCover ? 'text-lg' : isSquare ? 'text-2xl' : 'text-3xl'} font-extrabold leading-tight tracking-tight ${isCover ? 'mb-1' : 'mb-3'} drop-shadow-lg`} style={{ color: primaryTextColor }}>
+                  {headline} {isCover ? '' : <br />}
+                  <span style={{ color: highlightColor }}>{highlightText}</span>
                 </h1>
                 
-                <p className={`${isSquare ? 'text-sm' : 'text-base'} text-gray-200 leading-relaxed mb-6 max-w-[280px] drop-shadow-md`}>
+                <p className={`${isCover ? 'text-[10px] mb-2' : isSquare ? 'text-sm mb-6' : 'text-base mb-6'} leading-relaxed max-w-[280px] drop-shadow-md`} style={{ color: subtitleColor }}>
                   {subtitle}
                 </p>
                 
-                <div className="bg-[#40B883] text-white px-8 py-3.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-xl">
-                  Registreer gratis
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-                </div>
+                {!isCover && (
+                  <div className="text-white px-8 py-3.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-xl" style={{ backgroundColor: highlightColor }}>
+                    Registreer gratis
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -516,25 +527,29 @@ export default function App() {
 
         {template === 'stat' && (
           <>
-            <div className="absolute inset-0 bg-black/60"></div>
-            <div className="relative z-10 flex-1 flex flex-col p-8">
-              <div className="text-xl font-extrabold tracking-tight mb-8 text-white opacity-90 drop-shadow-md">
-                <span>UGC</span><span className="text-[#40B883]">4you</span>
-              </div>
+            {backgroundMode === 'media' && <div className="absolute inset-0 bg-black/60"></div>}
+            <div className={`relative z-10 flex-1 flex flex-col ${isCover ? 'p-3 flex-row items-center gap-4' : 'p-8'}`}>
+              {!isCover && (
+                <div className="text-xl font-extrabold tracking-tight mb-8 opacity-90 drop-shadow-md" style={{ color: primaryTextColor }}>
+                  <span>UGC</span><span style={{ color: highlightColor }}>4you</span>
+                </div>
+              )}
               
-              <div className="flex-1 flex flex-col justify-center items-center text-center">
-                <div className="mb-6 bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20 w-full shadow-2xl">
-                  <span className={`${isSquare ? 'text-5xl' : 'text-7xl'} font-black text-[#40B883] tracking-tight block mb-1 drop-shadow-lg`}>{statNumber}</span>
-                  <span className="text-sm font-bold text-white uppercase tracking-widest opacity-90">{statLabel}</span>
+              <div className={`flex-1 flex ${isCover ? 'flex-row items-center text-left gap-4' : 'flex-col justify-center items-center text-center'}`}>
+                <div className={`${isCover ? 'mb-0 p-3' : 'mb-6 p-6'} bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 shadow-2xl shrink-0`}>
+                  <span className={`${isCover ? 'text-2xl' : isSquare ? 'text-5xl' : 'text-7xl'} font-black tracking-tight block mb-1 drop-shadow-lg`} style={{ color: highlightColor }}>{statNumber}</span>
+                  <span className={`${isCover ? 'text-[10px]' : 'text-sm'} font-bold uppercase tracking-widest opacity-90`} style={{ color: primaryTextColor }}>{statLabel}</span>
                 </div>
                 
-                <h2 className={`${isSquare ? 'text-xl' : 'text-3xl'} font-bold leading-tight text-white mb-3 drop-shadow-lg`}>
-                  {headline} <span className="text-[#40B883]">{highlightText}</span>
-                </h2>
-                
-                <p className={`${isSquare ? 'text-xs' : 'text-sm'} text-gray-300 leading-relaxed max-w-[280px] drop-shadow-md`}>
-                  {subtitle}
-                </p>
+                <div>
+                  <h2 className={`${isCover ? 'text-base' : isSquare ? 'text-xl' : 'text-3xl'} font-bold leading-tight ${isCover ? 'mb-1' : 'mb-3'} drop-shadow-lg`} style={{ color: primaryTextColor }}>
+                    {headline} <span style={{ color: highlightColor }}>{highlightText}</span>
+                  </h2>
+                  
+                  <p className={`${isCover ? 'text-[10px]' : isSquare ? 'text-xs' : 'text-sm'} leading-relaxed max-w-[280px] drop-shadow-md`} style={{ color: subtitleColor }}>
+                    {subtitle}
+                  </p>
+                </div>
               </div>
             </div>
           </>
@@ -542,28 +557,30 @@ export default function App() {
 
         {template === 'quote' && (
           <>
-            <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/40 to-transparent"></div>
-            <div className="relative z-10 flex-1 flex flex-col p-8">
-              <div className="text-xl font-extrabold tracking-tight mb-8 text-white opacity-90 drop-shadow-md">
-                <span>UGC</span><span className="text-[#40B883]">4you</span>
-              </div>
+            {backgroundMode === 'media' && <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/40 to-transparent"></div>}
+            <div className={`relative z-10 flex-1 flex flex-col ${isCover ? 'p-3' : 'p-8'}`}>
+              {!isCover && (
+                <div className="text-xl font-extrabold tracking-tight mb-8 opacity-90 drop-shadow-md" style={{ color: primaryTextColor }}>
+                  <span>UGC</span><span style={{ color: highlightColor }}>4you</span>
+                </div>
+              )}
               
               <div className="flex-1 flex flex-col justify-center relative">
-                <svg className={`${isSquare ? 'w-12 h-12' : 'w-20 h-20'} text-[#40B883] opacity-50 absolute -top-6 -left-4 drop-shadow-lg`} fill="currentColor" viewBox="0 0 24 24">
+                <svg className={`${isCover ? 'w-6 h-6 -top-2 -left-2' : isSquare ? 'w-12 h-12 -top-6 -left-4' : 'w-20 h-20 -top-6 -left-4'} opacity-50 absolute drop-shadow-lg`} fill="currentColor" viewBox="0 0 24 24" style={{ color: highlightColor }}>
                   <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
                 </svg>
                 
-                <h2 className={`${isSquare ? 'text-xl' : 'text-3xl'} font-bold leading-snug mb-8 relative z-10 text-white drop-shadow-xl`}>
-                  "{headline} <span className="text-[#40B883]">{highlightText}</span>"
+                <h2 className={`${isCover ? 'text-base mb-2' : isSquare ? 'text-xl mb-8' : 'text-3xl mb-8'} font-bold leading-snug relative z-10 drop-shadow-xl`} style={{ color: primaryTextColor }}>
+                  "{headline} <span style={{ color: highlightColor }}>{highlightText}</span>"
                 </h2>
                 
-                <div className="flex items-center gap-3 mt-auto bg-black/40 backdrop-blur-md p-3 rounded-2xl border border-white/10 w-fit shadow-xl">
-                  <div className="w-10 h-10 rounded-full bg-[#40B883] flex items-center justify-center text-white font-bold text-lg shadow-inner">
+                <div className={`flex items-center ${isCover ? 'gap-2 p-1.5' : 'gap-3 p-3'} mt-auto bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 w-fit shadow-xl`}>
+                  <div className={`${isCover ? 'w-6 h-6 text-xs' : 'w-10 h-10 text-lg'} rounded-full flex items-center justify-center text-white font-bold shadow-inner`} style={{ backgroundColor: highlightColor }}>
                     {authorName.charAt(0)}
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-white">{authorName}</div>
-                    <div className="text-xs text-gray-300">UGC Creator</div>
+                    <div className={`${isCover ? 'text-[10px]' : 'text-sm'} font-bold`} style={{ color: primaryTextColor }}>{authorName}</div>
+                    <div className={`${isCover ? 'text-[8px]' : 'text-xs'}`} style={{ color: subtitleColor }}>UGC Creator</div>
                   </div>
                 </div>
               </div>
@@ -573,21 +590,42 @@ export default function App() {
 
         {template === 'spotlight' && (
           <>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/40"></div>
-            <div className="relative z-10 p-8 flex flex-col h-full">
-              <div className="text-xl font-extrabold tracking-tight drop-shadow-md text-white">
-                <span>UGC</span><span className="text-[#40B883]">4you</span>
-              </div>
+            {backgroundMode === 'media' && <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/40"></div>}
+            <div className={`relative z-10 flex flex-col h-full ${isCover ? 'p-4 justify-center' : 'p-8'}`}>
+              {!isCover && (
+                <div className="text-xl font-extrabold tracking-tight drop-shadow-md" style={{ color: primaryTextColor }}>
+                  <span>UGC</span><span style={{ color: highlightColor }}>4you</span>
+                </div>
+              )}
               
-              <div className="mt-auto">
-                <div className={`inline-block bg-[#40B883] text-white text-xs px-3 py-1.5 font-bold rounded-full mb-3 uppercase tracking-wider shadow-lg`}>
+              <div className={`${isCover ? '' : 'mt-auto'}`}>
+                <div className={`inline-block text-white ${isCover ? 'text-[8px] px-2 py-1 mb-1' : 'text-xs px-3 py-1.5 mb-3'} font-bold rounded-full uppercase tracking-wider shadow-lg`} style={{ backgroundColor: highlightColor }}>
                   Creator Spotlight
                 </div>
-                <h2 className={`${isSquare ? 'text-3xl' : 'text-5xl'} font-black text-white mb-2 leading-tight drop-shadow-2xl`}>
+                <h2 className={`${isCover ? 'text-xl' : isSquare ? 'text-3xl' : 'text-5xl'} font-black ${isCover ? 'mb-1' : 'mb-2'} leading-tight drop-shadow-2xl`} style={{ color: primaryTextColor }}>
                   {authorName}
                 </h2>
-                <p className={`${isSquare ? 'text-sm' : 'text-base'} text-gray-200 font-medium drop-shadow-lg max-w-[280px]`}>
-                  {headline} <span className="text-[#40B883]">{highlightText}</span>
+                <p className={`${isCover ? 'text-[10px]' : isSquare ? 'text-sm' : 'text-base'} font-medium drop-shadow-lg max-w-[280px]`} style={{ color: subtitleColor }}>
+                  {headline} <span style={{ color: highlightColor }}>{highlightText}</span>
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {template === 'banner-pro' && (
+          <>
+            {backgroundMode === 'media' && <div className="absolute inset-0 bg-gradient-to-l from-[#0f172a]/95 via-[#0f172a]/80 to-transparent"></div>}
+            <div className={`relative z-10 flex-1 flex flex-row items-center justify-end ${isCover ? 'p-4' : 'p-8'}`}>
+              <div className={`${isCover ? 'w-2/3' : 'w-full'} flex flex-col ${isCover ? 'items-end text-right' : 'items-center text-center'}`}>
+                <div className={`inline-block text-white ${isCover ? 'text-[8px] px-2 py-1 mb-2' : 'text-xs px-3 py-1.5 mb-4'} font-bold rounded-full uppercase tracking-wider shadow-lg`} style={{ backgroundColor: highlightColor }}>
+                  UGC4you Network
+                </div>
+                <h2 className={`${isCover ? 'text-lg' : isSquare ? 'text-3xl' : 'text-4xl'} font-black ${isCover ? 'mb-1' : 'mb-3'} leading-tight drop-shadow-2xl`} style={{ color: primaryTextColor }}>
+                  {headline} <span style={{ color: highlightColor }}>{highlightText}</span>
+                </h2>
+                <p className={`${isCover ? 'text-[9px]' : 'text-base'} font-medium drop-shadow-lg max-w-[300px]`} style={{ color: subtitleColor }}>
+                  {subtitle}
                 </p>
               </div>
             </div>
@@ -653,7 +691,7 @@ export default function App() {
             </h3>
             <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
               <button
-                onClick={() => { setPlatform('instagram'); }}
+                onClick={() => { setPlatform('instagram'); setFormat('post-square'); }}
                 className={`flex-1 py-2 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition-all ${platform === 'instagram' ? 'bg-white shadow-sm text-pink-600' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 <Instagram className="w-4 h-4" />
@@ -665,6 +703,13 @@ export default function App() {
               >
                 <Video className="w-4 h-4" />
                 TikTok
+              </button>
+              <button
+                onClick={() => { setPlatform('linkedin'); setFormat('linkedin-cover'); }}
+                className={`flex-1 py-2 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition-all ${platform === 'linkedin' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Linkedin className="w-4 h-4" />
+                LinkedIn
               </button>
             </div>
           </section>
@@ -698,18 +743,42 @@ export default function App() {
                     <span className="text-sm font-medium">Post (4:5)</span>
                     <span className="text-xs opacity-70 mt-1">1080 x 1350 px</span>
                   </button>
+                  <button
+                    onClick={() => setFormat('story')}
+                    className={`flex flex-col items-center justify-center py-4 rounded-xl border-2 transition-all col-span-2 ${
+                      format === 'story' ? 'border-[#40B883] bg-[#40B883]/5 text-[#40B883]' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    <Smartphone className="w-6 h-6 mb-2" />
+                    <span className="text-sm font-medium">Story / Reel</span>
+                    <span className="text-xs opacity-70 mt-1">1080 x 1920 px</span>
+                  </button>
                 </>
               )}
-              <button
-                onClick={() => setFormat('story')}
-                className={`flex flex-col items-center justify-center py-4 rounded-xl border-2 transition-all ${
-                  format === 'story' ? 'border-[#40B883] bg-[#40B883]/5 text-[#40B883]' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                } ${platform === 'tiktok' ? 'col-span-2' : ''}`}
-              >
-                <Smartphone className="w-6 h-6 mb-2" />
-                <span className="text-sm font-medium">{platform === 'tiktok' ? 'TikTok Video' : 'Story / Reel'}</span>
-                <span className="text-xs opacity-70 mt-1">1080 x 1920 px</span>
-              </button>
+              {platform === 'tiktok' && (
+                <button
+                  onClick={() => setFormat('story')}
+                  className={`flex flex-col items-center justify-center py-4 rounded-xl border-2 transition-all col-span-2 ${
+                    format === 'story' ? 'border-[#40B883] bg-[#40B883]/5 text-[#40B883]' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  <Smartphone className="w-6 h-6 mb-2" />
+                  <span className="text-sm font-medium">TikTok Video</span>
+                  <span className="text-xs opacity-70 mt-1">1080 x 1920 px</span>
+                </button>
+              )}
+              {platform === 'linkedin' && (
+                <button
+                  onClick={() => setFormat('linkedin-cover')}
+                  className={`flex flex-col items-center justify-center py-4 rounded-xl border-2 transition-all col-span-2 ${
+                    format === 'linkedin-cover' ? 'border-[#40B883] bg-[#40B883]/5 text-[#40B883]' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  <RectangleVertical className="w-6 h-6 mb-2 rotate-90" />
+                  <span className="text-sm font-medium">Cover Photo</span>
+                  <span className="text-xs opacity-70 mt-1">1584 x 396 px</span>
+                </button>
+              )}
             </div>
           </section>
 
@@ -724,18 +793,126 @@ export default function App() {
                 { id: 'cta', label: 'Call to Action' },
                 { id: 'stat', label: 'Statistiek' },
                 { id: 'quote', label: 'Quote' },
-                { id: 'spotlight', label: 'Spotlight' }
+                { id: 'spotlight', label: 'Spotlight' },
+                { id: 'banner-pro', label: 'Pro Banner' }
               ].map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setTemplate(t.id as Template)}
                   className={`py-3 px-4 rounded-xl border-2 text-sm font-medium transition-all text-left ${
                     template === t.id ? 'border-[#40B883] bg-[#40B883]/5 text-[#40B883]' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                  }`}
+                  } ${t.id === 'banner-pro' ? 'col-span-2' : ''}`}
                 >
                   {t.label}
                 </button>
               ))}
+            </div>
+          </section>
+
+          {/* Style & Colors */}
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#40B883]" />
+              Stijl & Kleuren
+            </h3>
+            
+            <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
+              <button
+                onClick={() => {
+                  setBackgroundMode('media');
+                  setPrimaryTextColor('#ffffff');
+                  setSubtitleColor('#e5e7eb');
+                }}
+                className={`flex-1 py-2 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition-all ${backgroundMode === 'media' ? 'bg-white shadow-sm text-[#40B883]' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Film className="w-4 h-4" />
+                Media
+              </button>
+              <button
+                onClick={() => {
+                  setBackgroundMode('solid');
+                  setPrimaryTextColor('#111827');
+                  setSubtitleColor('#4b5563');
+                }}
+                className={`flex-1 py-2 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition-all ${backgroundMode === 'solid' ? 'bg-white shadow-sm text-[#40B883]' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Square className="w-4 h-4" />
+                Effen
+              </button>
+            </div>
+
+            {backgroundMode === 'solid' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Achtergrondkleur</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className="w-10 h-10 border-none rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#40B883] focus:border-transparent"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Hoofdtekst</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={primaryTextColor}
+                    onChange={(e) => setPrimaryTextColor(e.target.value)}
+                    className="w-8 h-8 border-none rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={primaryTextColor}
+                    onChange={(e) => setPrimaryTextColor(e.target.value)}
+                    className="flex-1 px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#40B883] focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Highlight</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={highlightColor}
+                    onChange={(e) => setHighlightColor(e.target.value)}
+                    className="w-8 h-8 border-none rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={highlightColor}
+                    onChange={(e) => setHighlightColor(e.target.value)}
+                    className="flex-1 px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#40B883] focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Subtitel / Details</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={subtitleColor}
+                    onChange={(e) => setSubtitleColor(e.target.value)}
+                    className="w-8 h-8 border-none rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={subtitleColor}
+                    onChange={(e) => setSubtitleColor(e.target.value)}
+                    className="flex-1 px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#40B883] focus:border-transparent"
+                  />
+                </div>
+              </div>
             </div>
           </section>
 
@@ -910,8 +1087,15 @@ export default function App() {
         </div>
 
         {/* The actual preview container that gets converted to image */}
-        <div className="rounded-xl overflow-hidden shadow-xl ring-1 ring-black/5 bg-white">
-          {renderPreview()}
+        <div className="relative group">
+          <div className="rounded-xl overflow-hidden shadow-xl ring-1 ring-black/5 bg-white">
+            {renderPreview()}
+          </div>
+          {audioUrl && (
+            <div className="absolute top-4 right-4 z-30 bg-purple-600 text-white p-2 rounded-full shadow-lg animate-bounce-slow">
+              <Sparkles className="w-4 h-4" />
+            </div>
+          )}
         </div>
         
         <p className="mt-6 text-sm text-gray-500 text-center max-w-md">
@@ -942,7 +1126,21 @@ export default function App() {
                     )}
                   </div>
                   <div className="text-xs font-semibold text-gray-900 truncate px-1">{v.headline}</div>
-                  <div className="text-[10px] text-gray-500 uppercase font-bold px-1">{v.template}</div>
+                  <div className="flex items-center justify-between px-1">
+                    <div className="text-[10px] text-gray-500 uppercase font-bold">{v.template}</div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setHeadline(v.headline);
+                        setSubtitle(v.subtitle);
+                        handleGenerateAudio();
+                      }}
+                      className="p-1 hover:bg-purple-100 rounded text-purple-600 transition-colors"
+                      title="Genereer Voice-over voor deze variant"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
